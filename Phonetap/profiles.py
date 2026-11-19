@@ -1,5 +1,7 @@
+import importlib.util
 import json
 import os
+import sys
 
 profile_fields = (
     'username',
@@ -10,10 +12,76 @@ profile_fields = (
     'directories',
     'extensions')
 
+PROFILES_FILENAME = 'profiles.json'
+
+
+def _is_venv_dir(path):
+    return os.path.isfile(os.path.join(path, 'pyvenv.cfg'))
+
+
+def _find_in_dir(directory):
+    candidate = os.path.join(directory, PROFILES_FILENAME)
+    return candidate if os.path.isfile(candidate) else None
+
+
+def _find_below_python_root():
+    # If running inside a virtual environment, search the base interpreter
+    # installation instead, and make sure the venv itself is skipped.
+    venv_dir = sys.prefix if sys.prefix != sys.base_prefix else None
+    root = sys.base_prefix
+
+    for dirpath, dirnames, filenames in os.walk(root):
+        if venv_dir and os.path.abspath(dirpath) == os.path.abspath(venv_dir):
+            dirnames[:] = []
+            continue
+        dirnames[:] = [d for d in dirnames if not _is_venv_dir(os.path.join(dirpath, d))]
+        if PROFILES_FILENAME in filenames:
+            return os.path.join(dirpath, PROFILES_FILENAME)
+    return None
+
+
+def _find_in_package_dir():
+    package_name = (__package__ or '').split('.')[0]
+    if not package_name:
+        return None
+    try:
+        spec = importlib.util.find_spec(package_name)
+    except (ImportError, ValueError):
+        return None
+    if not spec or not spec.origin:
+        return None
+    package_dir = os.path.dirname(spec.origin)
+    return _find_in_dir(package_dir)
+
+
+def _find_profiles_file():
+    script_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv and sys.argv[0] else None
+    locations = (
+        lambda: _find_in_dir(os.getcwd()),
+        lambda: _find_in_dir(os.path.expanduser('~')),
+        lambda: _find_in_dir(script_dir) if script_dir else None,
+        _find_below_python_root,
+        _find_in_package_dir,
+    )
+    for find in locations:
+        found = find()
+        if found:
+            return found
+    return None
+
+
+def resolve_profile(profile_file):
+    if profile_file is None:
+        profile_file = _find_profiles_file()
+    if profile_file is None:
+        raise ValueError("profile file couldn't be found")
+    print(f'Using profile file in {profile_file}.')
+    return profile_file
+
 
 def _explode_profile(**kwargs):
     print('explode profile')
-    profile_file = kwargs['profile_file']
+    profile_file = resolve_profile(kwargs.get('profile_file'))
     profile_name = kwargs['profile']
 
     if os.path.exists(profile_file):
@@ -58,7 +126,7 @@ def explode_profile(**kwargs):
 
 def edit(**kwargs):
     profile = _explode_profile(**kwargs)
-    profile_file = profile['profile_file']
+    profile_file = resolve_profile(profile['profile_file'])
     with open(profile_file, 'r') as j:
         profiles = json.loads(j.read())
     profiles[profile['profile']] = profile
@@ -68,12 +136,14 @@ def edit(**kwargs):
 
 
 def list_profiles(profile_file):
+    profile_file = resolve_profile(profile_file)
     with open(profile_file, 'r') as j:
         profiles = json.loads(j.read())
     print(f'Available profiles are :{profiles.keys()}')
 
 
 def show(profile_file, profile=None):
+    profile_file = resolve_profile(profile_file)
     with open(profile_file, 'r') as j:
         profiles = json.loads(j.read())
     if profile:

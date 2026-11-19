@@ -78,7 +78,7 @@ def edit_profile(**kwargs):
 @profile.command('list')
 @click.option('--profile-file', '-f', required=False, help='The path fo the json file containing the profiles')
 def list_profiles(profile_file):
-    echo()
+    echo(profile_file)
     profiles.list_profiles(profile_file)
 
 
