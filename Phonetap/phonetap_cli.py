@@ -37,7 +37,7 @@ def stow():
 
 def profile_option(f):
     options = [
-        click.option('--profile-file', '-f', required=False, default='./profiles.json'
+        click.option('--profile-file', '-f', required=False, default=None
                      , help='The path fo the json file containing the profiles'),
         click.option('--profile', '-p', required=False,
                      help='If omitted, the 1st available profile in the profile file is used'),

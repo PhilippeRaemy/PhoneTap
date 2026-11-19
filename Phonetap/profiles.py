@@ -96,16 +96,23 @@ def _explode_profile(**kwargs):
         with open(profile_file) as j:
             profiles = json.loads(j.read())
     else:
-        missing_fields = [fi for fi in profile_fields + ['profile'] if not bool(kwargs[fi])]
+        missing_fields = [fi for fi in profile_fields + ('profile',) if not bool(kwargs[fi])]
         if any(missing_fields):
-            print(f'On profile creation, all fields are required. {', '.join(missing_fields)} are missing.')
+            print(f"Profile file {profile_file} does not exist. "
+                  f"On profile creation, all fields are required. {', '.join(missing_fields)} are missing.",
+                  file=sys.stderr)
+            return None
         profiles = {}
 
     if profile_name:
         existing_key = _find_profile_key(profiles, profile_name)
+        if existing_key is None and profiles:
+            print(f"Profile '{profile_name}' was not found in {profile_file}. "
+                  f"Available profiles are: {', '.join(profiles.keys())}.", file=sys.stderr)
+            return None
         saved_profile = profiles.get(existing_key, {})
     else:
-        saved_profile = next(profiles.values(), {})
+        saved_profile = next(iter(profiles.values()), {})
 
     profile = {fi: kwargs.get(fi) or saved_profile.get(fi) for fi in profile_fields}
     profile['profile'] = profile_name
@@ -130,11 +137,15 @@ def _explode_profile(**kwargs):
 
 def explode_profile(**kwargs):
     profile = _explode_profile(**kwargs)
+    if profile is None:
+        sys.exit(1)
     return (profile[fi] for fi in profile_fields)
 
 
 def edit(**kwargs):
     profile = _explode_profile(**kwargs)
+    if profile is None:
+        sys.exit(1)
     profile_file = resolve_profile(profile['profile_file'])
     with open(profile_file, 'r') as j:
         profiles = json.loads(j.read())

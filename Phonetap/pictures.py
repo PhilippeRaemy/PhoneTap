@@ -100,7 +100,6 @@ def deduplicate(folder, file_types, run_mode, verbose, show, hash_size, algorith
     pic_dic = {}
     max_distance = 0
     for sub, _, files in os.walk(folder):
-        sub = os.path.join(folder, sub)
         for pic in files:
             if any((pic.endswith(e) for e in extensions)):
                 pic_file = os.path.join(sub, pic)
@@ -148,5 +147,5 @@ def deduplicate(folder, file_types, run_mode, verbose, show, hash_size, algorith
             im = images[0]
             shelf = '.'.join(im.file.split('.')[:-1])  # remove extension
             os.makedirs(shelf, exist_ok=True)
-            for im in images:
+            for im in images[1:]:
                 shutil.move(im.file, shelf)
