@@ -79,6 +79,14 @@ def resolve_profile(profile_file):
     return profile_file
 
 
+def _find_profile_key(profiles, profile_name):
+    """Return the actual key in profiles matching profile_name case-insensitively, or None."""
+    if profile_name is None:
+        return None
+    lowered = profile_name.lower()
+    return next((key for key in profiles if key.lower() == lowered), None)
+
+
 def _explode_profile(**kwargs):
     print('explode profile')
     profile_file = resolve_profile(kwargs.get('profile_file'))
@@ -94,7 +102,8 @@ def _explode_profile(**kwargs):
         profiles = {}
 
     if profile_name:
-        saved_profile = profiles.get(profile_name, {})
+        existing_key = _find_profile_key(profiles, profile_name)
+        saved_profile = profiles.get(existing_key, {})
     else:
         saved_profile = next(profiles.values(), {})
 
@@ -129,7 +138,8 @@ def edit(**kwargs):
     profile_file = resolve_profile(profile['profile_file'])
     with open(profile_file, 'r') as j:
         profiles = json.loads(j.read())
-    profiles[profile['profile']] = profile
+    existing_key = _find_profile_key(profiles, profile['profile'])
+    profiles[existing_key if existing_key else profile['profile']] = profile
     with open(profile_file, 'w') as j:
         dumps = json.dumps(profiles, indent=2)
         j.write(dumps)
@@ -147,7 +157,8 @@ def show(profile_file, profile=None):
     with open(profile_file, 'r') as j:
         profiles = json.loads(j.read())
     if profile:
-        print(json.dumps(profiles[profile], indent=2))
+        existing_key = _find_profile_key(profiles, profile)
+        print(json.dumps(profiles.get(existing_key, {}), indent=2))
     else:
         # list_profiles()
         print(f'Available profiles are :{profiles.keys()}')
