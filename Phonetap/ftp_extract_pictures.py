@@ -6,20 +6,14 @@ from os import listdir, path, remove
 from Phonetap.profiles import explode_profile
 
 
-def explore(profile: str, directory: str, username, password, host, port, local,
-            extensions,
-            add_extensions, remove_extensions):
-    username, password, _, remote_host, port, _, _ = explode_profile(profile, username, password, host, port, local,
-                                                                     [], extensions,
-                                                                     [], [],
-                                                                     add_extensions, remove_extensions)
-
+def explore(**kwargs):
+    username, password, _, remote_host, port, _, _ = explode_profile(**kwargs)
     with FTP() as ftp:
         print(f'Connecting to {remote_host}:{port}')
         ftp.connect(host=remote_host, port=port)
         ftp.login(user=username, passwd=password)
         print(ftp.getwelcome())
-        for name, attributes in ftp.mlsd(directory):
+        for name, attributes in ftp.mlsd(kwargs['directory']):
             print(name, attributes)
 
 
@@ -27,9 +21,10 @@ def remove_timestamp_file(local_directory):
     re_file = re.compile('lastTimestamp.*.txt', re.IGNORECASE)
     date_threshold = datetime(1900, 1, 1)
 
-    file_full_name = None
+    file_full_names = []
     for lastTimestamp in sorted(fi for fi in listdir(local_directory) if re_file.match(fi)):
         file_full_name = path.join(local_directory, lastTimestamp)
+        file_full_names.append(file_full_name)
         with open(file_full_name, 'r', encoding='utf-8') as ts:
             for li in ts.readlines():
                 try:
@@ -38,24 +33,31 @@ def remove_timestamp_file(local_directory):
                         date_threshold = date
                 except:
                     pass
-    return date_threshold, (lambda _: remove(file_full_name)) if file_full_name else None
+
+    def remover(new_file):
+        # Never delete the file we just (re)created, and don't let a failure to
+        # remove one stale file prevent the others (or the new file) from being handled.
+        for old_file in file_full_names:
+            if path.abspath(old_file) == path.abspath(new_file):
+                continue
+            try:
+                remove(old_file)
+            except OSError as e:
+                print(f'Could not remove old timestamp file {old_file}: {e}')
+
+    return date_threshold, remover if file_full_names else None
 
 
-def extract(profile, username, password, host, port, local,
-            directories, extensions,
-            add_directories, remove_directories,
-            add_extensions, remove_extensions):
+def extract(**kwargs):
     username, password, local_directory, remote_host, port, remote_directories, extensions \
-        = explode_profile(profile, username, password, host, port, local,
-                          directories, extensions,
-                          add_directories, remove_directories,
-                          add_extensions, remove_extensions)
+        = explode_profile(**kwargs)
 
     ext_re = re.compile('^.*\\' + ('$|^.*\\'.join(extensions)) + '$', re.IGNORECASE)
 
     exclusions = ['Android/media/ga.asti.android']
 
     date_threshold = None
+    remover = None
     try:
         with FTP() as ftp:
             print(f'Connecting to {remote_host}:{port}')
@@ -107,8 +109,10 @@ def extract(profile, username, password, host, port, local,
         threshold_file = path.join(local_directory, f"lastTimestamp_{date_threshold.strftime('%Y-%m-%d_%H-%M')}.txt")
         with open(threshold_file, 'w') as ts:
             ts.write(date_threshold.strftime('%Y-%m-%d %H:%M'))
-            if remover:
-                remover(None)
+        # Only remove the stale timestamp file(s) once the new one is confirmed
+        # written and closed on disk, so a failure never leaves us with none.
+        if remover and path.isfile(threshold_file) and path.getsize(threshold_file) > 0:
+            remover(threshold_file)
         print(f'Created threshold file {threshold_file}.')
 
 

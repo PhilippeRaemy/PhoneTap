@@ -1,7 +1,6 @@
+import inspect
 import json
 from functools import reduce
-from importlib.metadata import requires
-import inspect
 
 import click
 
@@ -38,18 +37,21 @@ def stow():
 
 def profile_option(f):
     options = [
-        click.option('--profile', required=True),
-        click.option('--username', required=False, default=None, type=str),
-        click.option('--password', required=False, default=None, type=str),
-        click.option('--host', required=False, default=None, type=str),
-        click.option('--port', required=False, default=None, type=int),
-        click.option('--local', required=False, default=None, type=str),
-        click.option('--directories', required=False, default=[], type=str),
-        click.option('--extensions', required=False, default=[], type=str),
-        click.option('--add-directories', required=False, default=[], type=str),
-        click.option('--remove-directories', required=False, default=[], type=str),
-        click.option('--add-extensions', required=False, default=None, type=str),
-        click.option('--remove-extensions', required=False, default=None, type=str)]
+        click.option('--profile-file', '-f', required=False, default=None
+                     , help='The path fo the json file containing the profiles'),
+        click.option('--profile', '-p', required=False,
+                     help='If omitted, the 1st available profile in the profile file is used'),
+        click.option('--username', '-u', required=False, default=None, type=str),
+        click.option('--password', '-w', required=False, default=None, type=str),
+        click.option('--host', '-h', required=False, default=None, type=str),
+        click.option('--port', '-t', required=False, default=None, type=int),
+        click.option('--local', '-l', required=False, default=None, type=str),
+        click.option('--directories', '-d', required=False, multiple=True, type=str),
+        click.option('--extensions', '-x', required=False, multiple=True, type=str),
+        click.option('--add-directories', '-ad', required=False, multiple=True, type=str),
+        click.option('--remove-directories', '-xd', required=False, multiple=True, type=str),
+        click.option('--add-extensions', '-ax', required=False, default=None, type=str),
+        click.option('--remove-extensions', '-xx', required=False, default=None, type=str)]
 
     return reduce(lambda lf, opt: opt(lf), options, f)
 
@@ -74,14 +76,18 @@ def edit_profile(**kwargs):
 
 
 @profile.command('list')
-def list_profiles():
-    echo()
-    profiles.list_profiles()
+@click.option('--profile-file', '-f', required=False, help='The path fo the json file containing the profiles')
+def list_profiles(profile_file):
+    profiles.list_profiles(profile_file)
 
 
 @profile.command('show')
-@click.option('--profile', default='')
+@click.argument('profile')
+@click.option('--profile-file', '-f', required=False, help='The path fo the json file containing the profiles')
 def show_profile(**kwargs):
+    """
+        Show the details of provided profile name
+    """
     echo(kwargs)
     profiles.show(**kwargs)
 
@@ -104,6 +110,10 @@ def extract(**kwargs):
 @click.option('--first', required=True, help='The first picture to compare')
 @click.option('--second', required=True, help='The second picture to compare')
 @click.option('--show', required=False, is_flag=True, help='Open the pictures in system pictures viewer')
+@click.option('--algorithm', '-a', required=False, default='dhash', type=click.Choice(['average', 'dhash']),
+              help='\b\nThe hash algorithm used\n>')
+@click.option('--hash-size', '-z', required=False, type=int, default=64,
+              help='\b\nthe hash size. The number of comparison points is the square of the hash size\n>')
 def pictures_compare(**kwargs):
     echo(kwargs)
     pictures.compare(**kwargs)
@@ -143,7 +153,8 @@ def stow_options(f):
         click.option('--offset-hours', '-o', required=False, type=int, default=0, help='Set time offset in hours'),
         click.option('--suffix', '-x', required=False, type=str, default='', help='Set optional picture name suffix'),
         click.option('--filter', '-l', required=False, type=str, default='', help='Filter files with os-wildcards'),
-        click.option('--file-types', '-y', required=False, type=str, default='jpg,jpeg,mov,mp3,mp4,cr2,webp,avi,wav,m4a',
+        click.option('--file-types', '-y', required=False, type=str,
+                     default='jpg,jpeg,mov,mp3,mp4,cr2,webp,avi,wav,m4a',
                      help='\b\nFile extensions of interest, comma-delimited, no wildcards\n'),
         click.option('--min-date', '-max', required=False, type=str, default='1900-01-01', help='Minimum file date'),
         click.option('--max-date', '-min', required=False, type=str, default='2500-01-01', help='Maximum file date'),
